@@ -58,6 +58,15 @@ fastify.register(fastifyStatic, {
 	decorateReply: false,
 });
 
+fastify.get("/crip-ping", (req, reply) => {
+	reply
+		.header("Access-Control-Allow-Origin", "*")
+		.header("Cross-Origin-Resource-Policy", "cross-origin")
+		.header("Cache-Control", "no-store")
+		.type("text/plain")
+		.send("ok");
+});
+
 fastify.setNotFoundHandler((res, reply) => {
 	return reply.code(404).type("text/html").sendFile("404.html");
 });
