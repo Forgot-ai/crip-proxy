@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crip Web</title>
+<script src="/scram/scramjet.all.js"></script>
+<script src="/baremux/index.js"></script>
+<script src="/register-sw.js"></script>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}
+iframe{display:block;width:100%;height:100%;border:0;background:#fff}
+</style>
+</head>
+<body>
+<script>
+"use strict";
+(function(){
+const listen=EventTarget.prototype.addEventListener;
+let frame=null;
+let ready=false;
+let loadingTimer=null;
+let replacing=false;
+const patched=new WeakSet();
+function send(data){
+try{parent.postMessage(Object.assign({cripWeb:1},data),"*")}catch(e){}
+}
+function isBlank(){
+const src=frame.frame.getAttribute("src")||"";
+return !src||src==="about:blank";
+}
+function patchHistory(){
+try{
+const proto=frame.frame.contentWindow.History.prototype;
+if(patched.has(proto))return;
+patched.add(proto);
+const original=proto.replaceState;
+proto.replaceState=function(){
+replacing=true;
+try{return Reflect.apply(original,this,arguments)}finally{replacing=false}
+};
+}catch(e){}
+}
+function run(d){
+try{
+if(d.type==="go"&&typeof d.url==="string")frame.go(d.url);
+else if(d.type==="reload"){if(isBlank())return;frame.reload()}
+else if(d.type==="blank")frame.frame.setAttribute("src","about:blank");
+}catch(err){
+send({type:"error",message:String(err&&err.message||err)});
+}
+}
+async function warmUp(){
+const client=new BareMux.BareClient("/baremux/worker.js");
+for(let i=0;i<40;i++){
+try{
+await client.fetch(location.origin+"/favicon.ico");
+return;
+}catch(err){
+if(!/wasm not loaded/i.test(String(err&&err.message||err)))return;
+}
+await new Promise(r=>setTimeout(r,250));
+}
+}
+async function boot(){
+try{
+const {ScramjetController}=$scramjetLoadController();
+const scramjet=new ScramjetController({files:{wasm:"/scram/scramjet.wasm.wasm",all:"/scram/scramjet.all.js",sync:"/scram/scramjet.sync.js"}});
+await scramjet.init();
+await registerSW();
+await navigator.serviceWorker.ready;
+const connection=new BareMux.BareMuxConnection("/baremux/worker.js");
+const wispUrl=(location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/wisp/";
+if((await connection.getTransport())!=="/libcurl/index.mjs")await connection.setTransport("/libcurl/index.mjs",[{websocket:wispUrl}]);
+await warmUp();
+frame=scramjet.createFrame();
+frame.frame.setAttribute("allow","fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture");
+document.body.appendChild(frame.frame);
+frame.addEventListener("urlchange",e=>{
+send({type:"url",url:String(e.url),replace:replacing});
+patchHistory();
+});
+frame.frame.addEventListener("load",()=>{
+clearTimeout(loadingTimer);
+if(isBlank())return;
+send({type:"load"});
+try{
+listen.call(frame.frame.contentWindow,"beforeunload",()=>{
+send({type:"loading"});
+clearTimeout(loadingTimer);
+loadingTimer=setTimeout(()=>send({type:"load"}),30000);
+});
+}catch(e){}
+});
+ready=true;
+send({type:"ready"});
+}catch(err){
+send({type:"error",message:String(err&&err.message||err)});
+}
+}
+addEventListener("message",e=>{
+if(e.source!==parent||!ready)return;
+const d=e.data;
+if(!d||d.cripWeb!==1)return;
+run(d);
+});
+boot();
+})();
+</script>
+</body>
+</html>
