@@ -42,6 +42,7 @@ try{return Reflect.apply(original,this,arguments)}finally{replacing=false}
 }catch(e){}
 }
 function run(d){
+if(d.id)send({type:"ack",id:d.id});
 try{
 if(d.type==="go"&&typeof d.url==="string")frame.go(d.url);
 else if(d.type==="reload"){if(isBlank())return;frame.reload()}
