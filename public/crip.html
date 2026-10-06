@@ -66,7 +66,7 @@ await new Promise(r=>setTimeout(r,250));
 async function boot(){
 try{
 const {ScramjetController}=$scramjetLoadController();
-const scramjet=new ScramjetController({files:{wasm:"/scram/scramjet.wasm.wasm",all:"/scram/scramjet.all.js",sync:"/scram/scramjet.sync.js"}});
+const scramjet=new ScramjetController({files:{wasm:"/scram/scramjet.wasm.wasm",all:"/scram/scramjet.all.js",sync:"/scram/scramjet.sync.js"},flags:{sourcemaps:false}});
 await scramjet.init();
 await registerSW();
 await navigator.serviceWorker.ready;
